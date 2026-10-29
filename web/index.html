@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Планер</title>
+<link rel="stylesheet" href="css/app.css">
+<style id="pageStyle"></style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand">Планер</div>
+    <div class="nav">
+      <button id="prev" type="button" title="Назад" aria-label="Назад">‹</button>
+      <select id="monthSel" aria-label="Месяц"></select>
+      <input id="yearIn" type="number" min="1583" max="9999" step="1" aria-label="Год">
+      <button id="next" type="button" title="Вперёд" aria-label="Вперёд">›</button>
+      <button id="today" type="button">Сегодня</button>
+    </div>
+    <div class="actions">
+      <button id="printBtn" type="button" class="primary">Печать</button>
+    </div>
+  </header>
+
+  <aside class="side">
+    <details open class="grp">
+      <summary>Страница</summary>
+      <label class="row"><span>Макет</span><select data-key="layout"></select></label>
+      <label class="row"><span>Бумага</span><select data-key="paper"></select></label>
+      <div class="row"><span>Ориентация</span>
+        <div class="seg">
+          <label><input type="radio" name="orient" value="landscape" data-key="orient"><span>Альбомная</span></label>
+          <label><input type="radio" name="orient" value="portrait" data-key="orient"><span>Книжная</span></label>
+        </div>
+      </div>
+      <div class="row custom" id="customRow"><span>Размер, мм</span>
+        <div class="pair"><input type="number" data-key="cw" min="50" max="1200" step="1" aria-label="Ширина"><b>×</b><input type="number" data-key="ch" min="50" max="1200" step="1" aria-label="Высота"></div>
+      </div>
+      <label class="row"><span>Поля, мм</span><input type="number" data-key="margin" min="0" max="40" step="1"></label>
+    </details>
+
+    <details open class="grp">
+      <summary>Календарь</summary>
+      <label class="row"><span>Язык</span><select data-key="locale"></select></label>
+      <label class="row"><span>Неделя с</span><select data-key="weekStart"></select></label>
+      <label class="row"><span>Праздники</span><select data-key="holidays"></select></label>
+      <label class="check"><input type="checkbox" data-key="showAdj"><span>Дни соседних месяцев</span></label>
+      <label class="check"><input type="checkbox" data-key="weekNums"><span>Номера недель</span></label>
+      <label class="row"><span>Шрифт</span><select data-key="font"></select></label>
+    </details>
+
+    <details open class="grp">
+      <summary>Оформление</summary>
+      <div class="lbl">Цвета</div>
+      <div id="palettes" class="swatches"></div>
+      <label class="row"><span>Акцент</span>
+        <div class="pair"><input type="color" id="accentIn" aria-label="Цвет акцента"><button type="button" id="accentReset" class="mini">Сброс</button></div>
+      </label>
+      <div class="lbl">Фон</div>
+      <div id="bgs" class="thumbs"></div>
+      <div class="row"><span>Своя картинка</span>
+        <div class="pair"><label class="mini file">Выбрать<input type="file" id="imgIn" accept="image/*" hidden></label><button type="button" id="imgClear" class="mini">Убрать</button></div>
+      </div>
+      <label class="row"><span>Яркость фона</span><input type="range" data-key="bgAlpha" min="0.1" max="1" step="0.05"></label>
+      <label class="row"><span>Заливка ячеек</span><input type="range" data-key="cellOp" min="0" max="1" step="0.05"></label>
+      <label class="check"><input type="checkbox" data-key="vary"><span>Свой узор у каждого месяца</span></label>
+    </details>
+
+    <details class="grp">
+      <summary>Заметки</summary>
+      <p class="hint">Нажмите на любой день на странице, чтобы вписать заметку. Она попадёт в печать и во все файлы.</p>
+      <div class="btns">
+        <button type="button" id="notesSave">Сохранить в файл</button>
+        <label class="btn">Загрузить из файла<input type="file" id="notesLoad" accept="application/json,.json" hidden></label>
+        <button type="button" id="notesClear" class="danger">Очистить все</button>
+      </div>
+    </details>
+
+    <details open class="grp">
+      <summary>Сохранить</summary>
+      <label class="row"><span>Что сохранять</span><select data-key="scope"></select></label>
+      <label class="row"><span>Качество, dpi</span><select data-key="dpi"></select></label>
+      <div class="btns grid">
+        <button type="button" data-export="png">PNG</button>
+        <button type="button" data-export="jpg">JPG</button>
+        <button type="button" data-export="pdf">PDF</button>
+        <button type="button" data-export="svg">SVG</button>
+        <button type="button" data-export="xlsx">Excel</button>
+        <button type="button" data-export="csv">CSV</button>
+      </div>
+      <p class="hint">Для PDF с настоящим текстом нажмите «Печать» и выберите «Сохранить как PDF».</p>
+    </details>
+  </aside>
+
+  <main class="stage" id="stage"><div id="sheet"></div></main>
+</div>
+
+<div id="printRoot"></div>
+
+<dialog id="noteDlg">
+  <form method="dialog" id="noteForm">
+    <h3 id="noteTitle"></h3>
+    <p id="noteHol" class="hint"></p>
+    <textarea id="noteText" rows="6" maxlength="2000"></textarea>
+    <div class="dlgbtns">
+      <button type="button" id="noteDel" class="danger">Удалить</button>
+      <span class="grow"></span>
+      <button type="button" id="noteCancel">Отмена</button>
+      <button type="submit" class="primary" id="noteOk">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" role="status"></div>
+
+<script src="js/data.js"></script>
+<script src="js/render.js"></script>
+<script src="js/export.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
