@@ -2,8 +2,11 @@ name: release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -22,6 +25,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --title "Планер $GITHUB_REF_NAME" \
-            --notes "Скачайте файл для своей системы и запустите. Подробности в README."
+          notes="Скачайте файл для своей системы и запустите. Подробности в README."
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            gh release create "$GITHUB_REF_NAME" dist/* --title "Планер $GITHUB_REF_NAME" --notes "$notes"
+          else
+            gh release delete latest --cleanup-tag --yes || true
+            gh release create latest dist/* --target "$GITHUB_SHA" --latest --title "Планер" --notes "$notes"
+          fi
