@@ -2,12 +2,13 @@
   const P = window.P;
   const $ = function (s) { return document.querySelector(s); };
   const $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
-  const numeric = { cw: 1, ch: 1, margin: 1, bgAlpha: 1, cellOp: 1, weekStart: 1, dpi: 1 };
+  const numeric = { cw: 1, ch: 1, margin: 1, bgAlpha: 1, cellOp: 1, noteScale: 1, weekStart: 1, dpi: 1 };
 
   let st = Object.assign({}, P.defaults);
   let notes = {};
   let image = null;
   let serverMode = false;
+  let lastOver = {};
   let busy = false;
   const today = new Date();
   const view = { y: today.getFullYear(), m: today.getMonth(), d: today.getDate() };
@@ -139,6 +140,7 @@
       else el.value = st[k];
     });
     $('#customRow').style.display = st.paper === 'custom' ? '' : 'none';
+    $('#noteScaleVal').textContent = Math.round((+st.noteScale || 1) * 100) + '%';
     $('#accentIn').value = /^#[0-9a-f]{6}$/i.test(st.accent) ? st.accent : P.palette(st).accent;
     $('#monthSel').value = view.m;
     $('#monthSel').disabled = st.layout === 'year';
@@ -188,6 +190,7 @@
   function render() {
     const r = renderSpec(curSpec());
     sheet.innerHTML = r.svg;
+    lastOver = r.over;
     sheet.dataset.w = r.W;
     sheet.dataset.h = r.H;
     fit();
@@ -428,26 +431,114 @@
     return new Intl.DateTimeFormat(loc, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(p[0], p[1] - 1, p[2]));
   }
 
+  const noteSession = { key: null, backup: undefined, saved: false, color: '' };
+
+  function noteDefaults() {
+    return { t: '', s: 1, h: 'l', v: 'a', dx: 0, dy: 0, c: '', b: false, i: false };
+  }
+
+  function fillNoteForm(nt) {
+    $('#noteText').value = nt.t;
+    $('#noteSize').value = nt.s;
+    $('#noteV').value = nt.v;
+    $('#noteDx').value = nt.dx;
+    $('#noteDy').value = nt.dy;
+    $('#noteB').setAttribute('aria-pressed', String(nt.b));
+    $('#noteI').setAttribute('aria-pressed', String(nt.i));
+    $$('input[name=noteH]').forEach(function (r) { r.checked = r.value === nt.h; });
+    noteSession.color = nt.c;
+    $('#noteColor').value = nt.c || P.palette(st).ink;
+  }
+
+  function readNoteForm() {
+    const h = $('input[name=noteH]:checked');
+    return {
+      t: $('#noteText').value,
+      s: +$('#noteSize').value,
+      h: h ? h.value : 'l',
+      v: $('#noteV').value,
+      dx: +$('#noteDx').value,
+      dy: +$('#noteDy').value,
+      c: noteSession.color,
+      b: $('#noteB').getAttribute('aria-pressed') === 'true',
+      i: $('#noteI').getAttribute('aria-pressed') === 'true'
+    };
+  }
+
+  function updateNotePreview() {
+    const box = $('#notePreview');
+    const svg = sheet.querySelector('svg');
+    const g = svg && svg.querySelector('[data-note="' + noteSession.key + '"]');
+    const r = g && g.querySelector('rect');
+    if (!r) {
+      box.textContent = '';
+      return;
+    }
+    const clone = svg.cloneNode(true);
+    const x = +r.getAttribute('x'), y = +r.getAttribute('y'), w = +r.getAttribute('width'), h = +r.getAttribute('height');
+    clone.setAttribute('viewBox', x + ' ' + y + ' ' + w + ' ' + h);
+    clone.removeAttribute('width');
+    clone.removeAttribute('height');
+    box.replaceChildren(clone);
+  }
+
+  function applyNoteDraft() {
+    const d = readNoteForm();
+    const stored = P.noteCompact(d);
+    if (stored == null) delete notes[noteSession.key];
+    else notes[noteSession.key] = stored;
+    $('#noteSizeVal').textContent = Math.round(d.s * 100) + '%';
+    $('#noteDxVal').textContent = d.dx + '%';
+    $('#noteDyVal').textContent = d.dy + '%';
+    render();
+    updateNotePreview();
+    $('#noteWarn').style.display = lastOver[noteSession.key] ? '' : 'none';
+  }
+
+  function fitNoteSize() {
+    let lo = 0.4;
+    let hi = 4;
+    for (let i = 0; i < 12; i++) {
+      const mid = (lo + hi) / 2;
+      $('#noteSize').value = mid;
+      applyNoteDraft();
+      if (lastOver[noteSession.key]) hi = mid;
+      else lo = mid;
+    }
+    $('#noteSize').value = Math.round(lo * 20) / 20;
+    applyNoteDraft();
+  }
+
   function openNote(key) {
     const dlg = $('#noteDlg');
-    $('#noteTitle').textContent = noteTitle(key);
+    const title = noteTitle(key);
+    $('#noteTitle').textContent = title.charAt(0).toUpperCase() + title.slice(1);
     const p = key.split('-').map(Number);
     const hol = p.length === 3 && !/^w/.test(key) ? P.holidayFn(st.holidays)(p[0], p[1] - 1, p[2]) : '';
     $('#noteHol').textContent = hol;
     $('#noteHol').style.display = hol ? '' : 'none';
-    $('#noteText').value = notes[key] || '';
-    dlg.dataset.key = key;
+    $('#noteWarn').style.display = 'none';
+    noteSession.key = key;
+    noteSession.backup = notes[key];
+    noteSession.saved = false;
+    fillNoteForm(P.noteOf(notes[key]) || noteDefaults());
+    $('#noteSizeVal').textContent = Math.round(+$('#noteSize').value * 100) + '%';
+    $('#noteDxVal').textContent = $('#noteDx').value + '%';
+    $('#noteDyVal').textContent = $('#noteDy').value + '%';
     dlg.showModal();
+    updateNotePreview();
     $('#noteText').focus();
   }
 
-  function saveNote() {
-    const key = $('#noteDlg').dataset.key;
-    const v = $('#noteText').value.replace(/\s+$/, '');
-    if (v) notes[key] = v;
-    else delete notes[key];
-    render();
-    Store.save();
+  function finishNote() {
+    if (!noteSession.saved) {
+      if (noteSession.backup === undefined) delete notes[noteSession.key];
+      else notes[noteSession.key] = noteSession.backup;
+      render();
+    } else {
+      Store.save();
+    }
+    noteSession.key = null;
   }
 
   function bindNotes() {
@@ -465,12 +556,39 @@
       const n = e.target.closest('[data-note]');
       if (n) openNote(n.getAttribute('data-note'));
     });
-    $('#noteForm').addEventListener('submit', function () { saveNote(); });
+    $('#noteForm').addEventListener('submit', function () { noteSession.saved = true; });
+    $('#noteDlg').addEventListener('close', finishNote);
     $('#noteCancel').addEventListener('click', function () { $('#noteDlg').close(); });
     $('#noteDel').addEventListener('click', function () {
-      $('#noteText').value = '';
-      saveNote();
+      delete notes[noteSession.key];
+      noteSession.saved = true;
       $('#noteDlg').close();
+    });
+    $('#noteFit').addEventListener('click', fitNoteSize);
+    $('#noteReset').addEventListener('click', function () {
+      const t = $('#noteText').value;
+      fillNoteForm(Object.assign(noteDefaults(), { t: t }));
+      applyNoteDraft();
+    });
+    ['#noteText', '#noteSize', '#noteV', '#noteDx', '#noteDy'].forEach(function (id) {
+      $(id).addEventListener('input', applyNoteDraft);
+    });
+    $$('input[name=noteH]').forEach(function (r) { r.addEventListener('change', applyNoteDraft); });
+    ['#noteB', '#noteI'].forEach(function (id) {
+      $(id).addEventListener('click', function () {
+        const el = $(id);
+        el.setAttribute('aria-pressed', String(el.getAttribute('aria-pressed') !== 'true'));
+        applyNoteDraft();
+      });
+    });
+    $('#noteColor').addEventListener('input', function (e) {
+      noteSession.color = e.target.value;
+      applyNoteDraft();
+    });
+    $('#noteColorReset').addEventListener('click', function () {
+      noteSession.color = '';
+      $('#noteColor').value = P.palette(st).ink;
+      applyNoteDraft();
     });
     $('#noteText').addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -489,7 +607,8 @@
         const j = JSON.parse(t);
         const src = j && j.notes ? j.notes : j;
         Object.keys(src).forEach(function (k) {
-          if (typeof src[k] === 'string' && src[k]) notes[k] = src[k];
+          const nt = P.noteCompact(src[k]);
+          if (nt != null) notes[k] = nt;
         });
         render();
         Store.save();

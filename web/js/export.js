@@ -191,7 +191,7 @@
         const numColor = !cell.inMonth ? 'FF9E9E9E' : (weekend || h ? 'FFC0504D' : 'FF111111');
         let rich = run(String(cell.d), true, 14, numColor);
         if (h) rich += run('\n' + h, false, 9, 'FFC0504D');
-        const note = cell.inMonth ? (notes[key] || '') : '';
+        const note = cell.inMonth ? P.noteText(notes[key]) : '';
         if (note) rich += run('\n' + note, false, 10, 'FF111111');
         sd += '<c r="' + colName(ci) + r + '" s="' + style + '" t="inlineStr"><is>' + rich + '</is></c>';
       });
@@ -260,7 +260,7 @@
       for (let d = 1; d <= P.daysIn(m.y, m.m); d++) {
         const dt = new Date(m.y, m.m, d);
         const key = P.dateKey(m.y, m.m, d);
-        lines.push([key, P.weekdayName(c.locale, dt.getDay(), 'long'), hol(m.y, m.m, d), notes[key] || ''].map(q).join(sep));
+        lines.push([key, P.weekdayName(c.locale, dt.getDay(), 'long'), hol(m.y, m.m, d), P.noteText(notes[key])].map(q).join(sep));
       }
     });
     return new Blob(['﻿' + lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });

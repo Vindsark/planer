@@ -67,9 +67,10 @@
       <label class="check"><input type="checkbox" data-key="vary"><span>Свой узор у каждого месяца</span></label>
     </details>
 
-    <details class="grp">
+    <details open class="grp">
       <summary>Заметки</summary>
-      <p class="hint">Нажмите на любой день на странице, чтобы вписать заметку. Она попадёт в печать и во все файлы.</p>
+      <p class="hint">Нажмите на любой день на странице, чтобы вписать заметку и настроить размер, цвет и положение текста. Заметка попадёт в печать и во все файлы.</p>
+      <label class="row"><span>Размер текста</span><input type="range" data-key="noteScale" min="0.5" max="3" step="0.05"><output id="noteScaleVal"></output></label>
       <div class="btns">
         <button type="button" id="notesSave">Сохранить в файл</button>
         <label class="btn">Загрузить из файла<input type="file" id="notesLoad" accept="application/json,.json" hidden></label>
@@ -102,9 +103,38 @@
   <form method="dialog" id="noteForm">
     <h3 id="noteTitle"></h3>
     <p id="noteHol" class="hint"></p>
-    <textarea id="noteText" rows="6" maxlength="2000"></textarea>
+    <div id="notePreview" class="preview"></div>
+    <textarea id="noteText" rows="3" maxlength="2000"></textarea>
+    <div class="nrow"><span>Размер</span><input type="range" id="noteSize" min="0.4" max="4" step="0.05"><output id="noteSizeVal"></output><button type="button" id="noteFit" class="mini" title="Подобрать самый крупный размер, при котором текст помещается">Вписать</button></div>
+    <p id="noteWarn" class="warn">Текст не помещается: уменьшите размер или нажмите «Вписать».</p>
+    <div class="nrow"><span>Начертание</span>
+      <div class="tog">
+        <button type="button" id="noteB" aria-pressed="false" aria-label="Жирный"><b>Ж</b></button>
+        <button type="button" id="noteI" aria-pressed="false" aria-label="Курсив"><i>К</i></button>
+      </div>
+      <input type="color" id="noteColor" aria-label="Цвет текста">
+      <button type="button" id="noteColorReset" class="mini">Авто</button>
+    </div>
+    <div class="nrow"><span>Выравнивание</span>
+      <div class="seg">
+        <label><input type="radio" name="noteH" value="l"><span>Слева</span></label>
+        <label><input type="radio" name="noteH" value="c"><span>По центру</span></label>
+        <label><input type="radio" name="noteH" value="r"><span>Справа</span></label>
+      </div>
+    </div>
+    <div class="nrow"><span>Положение</span>
+      <select id="noteV">
+        <option value="a">Под числом</option>
+        <option value="m">По центру ячейки</option>
+        <option value="b">Внизу ячейки</option>
+      </select>
+    </div>
+    <div class="nrow"><span>Сдвиг вправо</span><input type="range" id="noteDx" min="-50" max="50" step="1"><output id="noteDxVal"></output></div>
+    <div class="nrow"><span>Сдвиг вниз</span><input type="range" id="noteDy" min="-50" max="50" step="1"><output id="noteDyVal"></output></div>
+    <p class="hint">Положение и сдвиг работают в сетке месяца. В макетах с линейками текст ложится на строки, а размер, цвет и выравнивание действуют везде.</p>
     <div class="dlgbtns">
       <button type="button" id="noteDel" class="danger">Удалить</button>
+      <button type="button" id="noteReset">Сбросить вид</button>
       <span class="grow"></span>
       <button type="button" id="noteCancel">Отмена</button>
       <button type="submit" class="primary" id="noteOk">Сохранить</button>

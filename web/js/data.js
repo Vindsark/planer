@@ -145,6 +145,7 @@ P.defaults = {
   bg: 'arcs',
   bgAlpha: 0.8,
   cellOp: 0.92,
+  noteScale: 1,
   vary: false,
   accent: '',
   dpi: 200,

@@ -63,6 +63,43 @@
 
   const holCache = {};
 
+  P.noteOf = function (raw) {
+    if (raw == null) return null;
+    const r = typeof raw === 'string' ? { t: raw } : raw;
+    if (!r || typeof r.t !== 'string' || !r.t.trim()) return null;
+    return {
+      t: r.t,
+      s: clamp(+r.s || 1, 0.4, 5),
+      h: ['l', 'c', 'r'].indexOf(r.h) >= 0 ? r.h : 'l',
+      v: ['a', 'm', 'b'].indexOf(r.v) >= 0 ? r.v : 'a',
+      dx: clamp(+r.dx || 0, -50, 50),
+      dy: clamp(+r.dy || 0, -50, 50),
+      c: /^#[0-9a-f]{6}$/i.test(r.c || '') ? r.c : '',
+      b: !!r.b,
+      i: !!r.i
+    };
+  };
+
+  P.noteText = function (raw) {
+    const nt = P.noteOf(raw);
+    return nt ? nt.t : '';
+  };
+
+  P.noteCompact = function (draft) {
+    const nt = P.noteOf(draft);
+    if (!nt) return null;
+    const out = { t: nt.t };
+    if (Math.abs(nt.s - 1) > 0.001) out.s = nt.s;
+    if (nt.h !== 'l') out.h = nt.h;
+    if (nt.v !== 'a') out.v = nt.v;
+    if (nt.dx) out.dx = nt.dx;
+    if (nt.dy) out.dy = nt.dy;
+    if (nt.c) out.c = nt.c;
+    if (nt.b) out.b = true;
+    if (nt.i) out.i = true;
+    return Object.keys(out).length === 1 ? out.t : out;
+  };
+
   function nthDay(y, m, wd, k) {
     if (k > 0) {
       const off = (wd - new Date(y, m, 1).getDay() + 7) % 7;
@@ -94,7 +131,7 @@
     return mctx.measureText(t).width * size / 100;
   }
 
-  function wrapText(text, size, maxW, c, maxLines) {
+  function wrapText(text, size, maxW, c, maxLines, wt) {
     if (maxLines < 1 || maxW <= 0) return [];
     const lines = [];
     String(text).split('\n').forEach(function (p) {
@@ -106,9 +143,9 @@
       let cur = '';
       words.forEach(function (word) {
         let w = word;
-        while (tw(w, size, c) > maxW) {
+        while (tw(w, size, c, wt) > maxW) {
           let k = w.length;
-          while (k > 1 && tw(w.slice(0, k), size, c) > maxW) k--;
+          while (k > 1 && tw(w.slice(0, k), size, c, wt) > maxW) k--;
           if (cur) {
             lines.push(cur);
             cur = '';
@@ -117,7 +154,7 @@
           w = w.slice(k);
         }
         const t = cur ? cur + ' ' + w : w;
-        if (tw(t, size, c) <= maxW) {
+        if (tw(t, size, c, wt) <= maxW) {
           cur = t;
         } else {
           lines.push(cur);
@@ -129,7 +166,7 @@
     if (lines.length > maxLines) {
       lines.length = maxLines;
       let l = lines[maxLines - 1];
-      while (l.length > 1 && tw(l + '…', size, c) > maxW) l = l.slice(0, -1);
+      while (l.length > 1 && tw(l + '…', size, c, wt) > maxW) l = l.slice(0, -1);
       lines[maxLines - 1] = l + '…';
     }
     return lines;
@@ -139,6 +176,7 @@
     o = o || {};
     let a = 'x="' + n(x) + '" y="' + n(y) + '" font-size="' + n(size) + '" fill="' + fill + '"';
     if (o.w) a += ' font-weight="' + o.w + '"';
+    if (o.i) a += ' font-style="italic"';
     if (o.anchor) a += ' text-anchor="' + o.anchor + '"';
     if (o.ls) a += ' letter-spacing="' + n(o.ls) + '"';
     if (o.halo) a += ' stroke="' + o.halo + '" stroke-width="' + n(o.hw) + '" stroke-linejoin="round" paint-order="stroke"';
@@ -376,31 +414,17 @@
         const color = !cell.inMonth ? pal.muted : (weekend || hol ? pal.accent : pal.ink);
         out += tx(cx + cw * 0.07, cy + ns0 * 1.3, cell.d, ns0, color);
         if (cell.inMonth) {
-          const note = c.notes[key] || '';
           const fs = Math.max(1.5, Math.min(3 * u, ch * 0.1, cw * 0.085));
           const top = cy + ns0 * 1.75;
-          const avail = cy + ch - top - fs * 0.4;
-          const maxLines = Math.floor(avail / (fs * 1.28));
           let ly = top + fs;
-          if (hol && maxLines > 0) {
-            const hl = wrapText(hol, fs, cw - cw * 0.14, c, Math.min(2, maxLines));
-            hl.forEach(function (t) {
+          const maxL = Math.floor((cy + ch - top - fs * 0.4) / (fs * 1.28));
+          if (hol && maxL > 0) {
+            wrapText(hol, fs, cw - cw * 0.14, c, Math.min(2, maxL)).forEach(function (t) {
               out += tx(cx + cw * 0.07, ly, t, fs, pal.accent);
               ly += fs * 1.28;
             });
-            const rest = maxLines - hl.length;
-            if (note && rest > 0) {
-              wrapText(note, fs, cw - cw * 0.14, c, rest).forEach(function (t) {
-                out += tx(cx + cw * 0.07, ly, t, fs, pal.ink);
-                ly += fs * 1.28;
-              });
-            }
-          } else if (note && maxLines > 0) {
-            wrapText(note, fs, cw - cw * 0.14, c, maxLines).forEach(function (t) {
-              out += tx(cx + cw * 0.07, ly, t, fs, pal.ink);
-              ly += fs * 1.28;
-            });
           }
+          out += cellNote(c, P.noteOf(c.notes[key]), key, cx, cy, cw, ch, ly - fs);
         }
         out += '</g>';
       });
@@ -408,16 +432,75 @@
     return out;
   }
 
-  function ruled(c, x, y, w, h, ls, lines, size, fill) {
-    const pal = c.pal;
+  function cellNote(c, nt, key, cx, cy, cw, ch, flowTop) {
+    if (!nt) return '';
+    const u = c.u;
+    const fs = Math.max(1.6, Math.min(3.6 * u, ch * 0.12, cw * 0.1)) * nt.s * clamp(+c.st.noteScale || 1, 0.4, 4);
+    const lh = fs * 1.28;
+    const padX = cw * 0.07;
+    const wt = nt.b ? 700 : 400;
+    const auto = nt.v === 'a';
+    const top = auto ? flowTop : cy + ch * 0.04;
+    const bottom = auto ? cy + ch - fs * 0.4 : cy + ch - ch * 0.04;
+    const maxLines = Math.floor((bottom - top) / lh);
+    if (auto && maxLines < 1) {
+      c.over[key] = true;
+      return '';
+    }
+    const cap = Math.max(1, maxLines);
+    const full = wrapText(nt.t, fs, cw - 2 * padX, c, 999, wt);
+    const lines = full.length > cap ? wrapText(nt.t, fs, cw - 2 * padX, c, cap, wt) : full;
+    if (full.length > cap) c.over[key] = true;
+    const block = lines.length * lh;
+    let blockTop = top;
+    if (nt.v === 'm') blockTop = cy + (ch - block) / 2;
+    if (nt.v === 'b') blockTop = cy + ch - ch * 0.04 - block;
+    let x = cx + padX;
+    let anchor = '';
+    if (nt.h === 'c') {
+      x = cx + cw / 2;
+      anchor = 'middle';
+    } else if (nt.h === 'r') {
+      x = cx + cw - padX;
+      anchor = 'end';
+    }
+    x += nt.dx / 100 * cw;
+    const y0 = blockTop + fs * 0.95 + nt.dy / 100 * ch;
+    const color = nt.c || c.pal.ink;
     let out = '';
-    const count = Math.max(0, Math.floor(h / ls));
+    lines.forEach(function (t, i) {
+      out += tx(x, y0 + i * lh, t, fs, color, { anchor: anchor, w: nt.b ? 700 : 0, i: nt.i });
+    });
+    return out;
+  }
+
+  function ruledNote(c, x, top, w, bottom, ls, raw, key) {
+    const pal = c.pal;
+    const nt = P.noteOf(raw);
+    const sc = clamp(+c.st.noteScale || 1, 0.4, 4) * (nt ? nt.s : 1);
+    const step = ls * clamp(sc, 0.7, 3.5);
+    const size = step * 0.55;
+    const count = Math.max(0, Math.floor((bottom - top - step * 0.3) / step));
+    let out = '';
     for (let i = 1; i <= count; i++) {
-      const ly = y + i * ls;
+      const ly = top + i * step;
       out += '<line x1="' + n(x) + '" y1="' + n(ly) + '" x2="' + n(x + w) + '" y2="' + n(ly) + '" stroke="' + pal.line + '" stroke-width="' + n(0.2 * c.u) + '" stroke-opacity="0.7"/>';
     }
-    lines.slice(0, count).forEach(function (t, i) {
-      out += tx(x, y + (i + 1) * ls - ls * 0.24, t, size, fill);
+    if (!nt) return out;
+    const wt = nt.b ? 700 : 400;
+    let tx0 = x;
+    let anchor = '';
+    if (nt.h === 'c') {
+      tx0 = x + w / 2;
+      anchor = 'middle';
+    } else if (nt.h === 'r') {
+      tx0 = x + w;
+      anchor = 'end';
+    }
+    const full = wrapText(nt.t, size, w, c, 999, wt);
+    if (full.length > count) c.over[key] = true;
+    (full.length > count ? wrapText(nt.t, size, w, c, count, wt) : full).forEach(function (t, i) {
+      out += tx(tx0, top + (i + 1) * step - step * 0.24, t, size, nt.c || pal.ink, { anchor: anchor, w: nt.b ? 700 : 0, i: nt.i });
     });
     return out;
   }
@@ -429,10 +512,7 @@
     out += tx(x + w * 0.05, y + ts * 1.5, c.lab.notes, ts, pal.ink, { w: 600 });
     const top = y + ts * 2.2;
     const ls = clamp((h - ts * 2.2) / 14, 5 * u, 8 * u);
-    const fs = ls * 0.55;
-    const text = c.notes[key] || '';
-    const count = Math.max(0, Math.floor((y + h - top - ls * 0.3) / ls));
-    out += ruled(c, x + w * 0.05, top, w * 0.9, count * ls, ls, wrapText(text, fs, w * 0.9, c, count), fs, pal.ink);
+    out += ruledNote(c, x + w * 0.05, top, w * 0.9, y + h, ls, c.notes[key], key);
     return out + '</g>';
   }
 
@@ -557,9 +637,7 @@
       }
       const tt = Math.max(by + ns * 1.5, hy + hs * 0.8);
       const ls = clamp((by + bh - tt) / 6, 4 * u, 7.5 * u);
-      const fs = ls * 0.55;
-      const count = Math.max(0, Math.floor((by + bh - tt - ls * 0.3) / ls));
-      out += ruled(c, bx + bw * 0.05, tt, bw * 0.9, count * ls, ls, wrapText(c.notes[key] || '', fs, bw * 0.9, c, count), fs, pal.ink);
+      out += ruledNote(c, bx + bw * 0.05, tt, bw * 0.9, by + bh, ls, c.notes[key], key);
       out += '</g>';
     }
     return out;
@@ -592,6 +670,7 @@
       loc: loc,
       lab: P.labels[loc] || P.labels.en,
       notes: extra.notes || {},
+      over: {},
       hol: P.holidayFn(st.holidays)
     };
     const seed = st.vary && spec.kind === 'month' ? spec.y * 12 + spec.m : 7;
@@ -602,6 +681,6 @@
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + n(W) + ' ' + n(H) + '" width="' + n(W) + 'mm" height="' + n(H) + 'mm" font-family="' + esc(c.fam) + '">' +
       '<rect width="' + n(W) + '" height="' + n(H) + '" fill="' + pal.paper + '"/>' +
       background(c, W, H, u, seed, extra.image) + body + '</svg>';
-    return { svg: svg, W: W, H: H, paper: pal.paper };
+    return { svg: svg, W: W, H: H, paper: pal.paper, over: c.over };
   };
 })();
